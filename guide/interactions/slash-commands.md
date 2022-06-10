@@ -126,12 +126,13 @@ Refer to the Discord API documentation for detailed explanations on the [`SUB_CO
 * `SUB_COMMAND_GROUP` sets the option to be a subcommand group
 * `STRING` sets the option to require a string value
 * `INTEGER` sets the option to require an integer value
-* `NUMBER` sets the option to require a decimal (also known as a floating point) value
 * `BOOLEAN` sets the option to require a boolean value
 * `USER` sets the option to require a user or snowflake as value
 * `CHANNEL` sets the option to require a channel or snowflake as value
 * `ROLE` sets the option to require a role or snowflake as value
 * `MENTIONABLE` sets the option to require a user, role or snowflake as value
+* `NUMBER` sets the option to require a decimal (also known as a floating point) value
+* `ATTACHMENT` sets the option to require an attachment
 
 ### Choices
 
@@ -141,7 +142,7 @@ The `STRING` and `INTEGER` option types both can have `choices`. `choices` are a
 If you specify `choices` for an option, they'll be the **only** valid values users can pick!
 :::
 
-Specify them by using the `addChoice()` method from the slash command builder:
+Specify them by using the `addChoices()` method from the slash command builder:
 
 ```js {10-12}
 const { SlashCommandBuilder } = require('@discordjs/builders');
@@ -153,9 +154,11 @@ const data = new SlashCommandBuilder()
 		option.setName('category')
 			.setDescription('The gif category')
 			.setRequired(true)
-			.addChoice('Funny', 'gif_funny')
-			.addChoice('Meme', 'gif_meme')
-			.addChoice('Movie', 'gif_movie'));
+			.addChoices(
+				{ name: 'Funny', value: 'gif_funny' },
+				{ name: 'Meme', value: 'gif_meme' },
+				{ name: 'Movie', value: 'gif_movie' },
+			));
 ```
 
 ### Subcommands
@@ -392,7 +395,7 @@ Interaction responses can use masked links (e.g. `[text](http://site.com)`) and 
 
 In this section, we'll cover how to access the values of a command's options. Let's assume you have a command that contains the following options:
 
-```js {6-13}
+```js {6-14}
 const { SlashCommandBuilder } = require('@discordjs/builders');
 
 const data = new SlashCommandBuilder()
@@ -400,12 +403,13 @@ const data = new SlashCommandBuilder()
 	.setDescription('Replies with Pong!')
 	.addStringOption(option => option.setName('input').setDescription('Enter a string'))
 	.addIntegerOption(option => option.setName('int').setDescription('Enter an integer'))
-	.addNumberOption(option => option.setName('num').setDescription('Enter a number'))
 	.addBooleanOption(option => option.setName('choice').setDescription('Select a boolean'))
 	.addUserOption(option => option.setName('target').setDescription('Select a user'))
 	.addChannelOption(option => option.setName('destination').setDescription('Select a channel'))
 	.addRoleOption(option => option.setName('muted').setDescription('Select a role'))
-	.addMentionableOption(option => option.setName('mentionable').setDescription('Mention something'));
+	.addMentionableOption(option => option.setName('mentionable').setDescription('Mention something'))
+	.addNumberOption(option => option.setName('num').setDescription('Enter a number'))
+	.addAttachmentOption(option => option.setName('attachment').setDescription('Attach something'));
 ```
 
 You can `get()` these options from the `CommandInteractionOptionResolver` as shown below:
@@ -413,15 +417,16 @@ You can `get()` these options from the `CommandInteractionOptionResolver` as sho
 ```js
 const string = interaction.options.getString('input');
 const integer = interaction.options.getInteger('int');
-const number = interaction.options.getNumber('num');
 const boolean = interaction.options.getBoolean('choice');
 const user = interaction.options.getUser('target');
 const member = interaction.options.getMember('target');
 const channel = interaction.options.getChannel('destination');
 const role = interaction.options.getRole('muted');
 const mentionable = interaction.options.getMentionable('mentionable');
+const number = interaction.options.getNumber('num');
+const attachment = interaction.options.getAttachment('attachment');
 
-console.log([string, integer, boolean, user, member, channel, role, mentionable]);
+console.log(string, integer, boolean, user, member, channel, role, mentionable, number, attachment);
 ```
 
 ::: tip
@@ -476,107 +481,3 @@ await interaction.reply('Pong!');
 const message = await interaction.fetchReply();
 console.log(message);
 ```
-
-## Slash command permissions
-
-Slash commands have their own permissions system, which allows you to control who has access to use which commands. Unlike the slash commands permission setting within the Discord client, you can fine-tune access to commands without preventing the selected user or role from using all commands.
-
-::: tip
-If you set `defaultPermission: false` when creating a command, you can immediately disable it for everyone, including guild administrators and yourself.
-:::
-
-### User permissions
-
-To begin, fetch an `ApplicationCommand` and then set the permissions using the `ApplicationCommandPermissionsManager#add()` method:
-
-<!-- eslint-skip -->
-
-```js
-if (!client.application?.owner) await client.application?.fetch();
-
-const command = await client.guilds.cache.get('123456789012345678')?.commands.fetch('876543210987654321');
-
-const permissions = [
-	{
-		id: '224617799434108928',
-		type: 'USER',
-		permission: false,
-	},
-];
-
-await command.permissions.add({ permissions });
-```
-
-Now you have successfully denied the user whose `id` you used access to this application command.
-
-::: tip
-If you want to update permissions for a global command instead, your `command` variable would be:
-```js
-const command = await client.application?.commands.fetch('123456789012345678');
-```
-:::
-
-If you have a command that is disabled by default and you want to grant someone access to use it, do as follows:
-
-<!-- eslint-skip -->
-
-```js {5}
-const permissions = [
-	{
-		id: '224617799434108928',
-		type: 'USER',
-		permission: true,
-	},
-];
-
-await command.permissions.set({ permissions });
-```
-
-### Role permissions
-
-Permissions may also be denied (or allowed) at a role scope instead of a single user:
-
-<!-- eslint-skip -->
-
-```js {4-5}
-const permissions = [
-	{
-		id: '464464090157416448',
-		type: 'ROLE',
-		permission: false,
-	},
-];
-
-await command.permissions.add({ permissions });
-```
-
-## Bulk update permissions
-
-If you have a lot of commands, you likely want to update their permissions in one go instead of one-by-one. For this approach, you can use `ApplicationCommandPermissionsManager#set()` method:
-
-<!-- eslint-skip -->
-
-```js
-const fullPermissions = [
-	{
-		id: '123456789012345678',
-		permissions: [{
-			id: '224617799434108928',
-			type: 'USER',
-			permission: false,
-		}],
-	},
-	{
-		id: '876543210987654321',
-		permissions: [{
-			id: '464464090157416448',
-			type: 'ROLE',
-			permission: true,
-		}],
-	},
-];
-
-await client.guilds.cache.get('123456789012345678')?.commands.permissions.set({ fullPermissions });
-```
-
-And that's all you need to know on slash command permissions!
